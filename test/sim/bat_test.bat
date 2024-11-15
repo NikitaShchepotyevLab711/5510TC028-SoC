@@ -1,1 +1,0 @@
-questasim -do do_test.do
