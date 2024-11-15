@@ -1,0 +1,13 @@
+    SCRIPT v1.0.7
+***********************
+
+***********************
+    X-MAP v0.51.15     
+***********************
+  TCL Lib ---> [OK] : D:/xcad/bin/../src/libraries/XCI2/XCI2_LE.tcl
+  TCL Lib ---> [OK] : D:/xcad/bin/../src/libraries/XCI2/XCI2_IO.tcl
+  TCL Lib ---> [OK] : D:/xcad/bin/../src/libraries/XCI2/XCI2_macro.tcl
+  Parsing ---> [OK] : C:/Users/Admin-PC/Desktop/xcad_projects/test/prj/test.syn_y.v
+  Library ---> [OK] : test.xmap.lib.tcl
+  Netlist ---> [OK] : test.xmap.tcl
+  Destroy ---> [OK]

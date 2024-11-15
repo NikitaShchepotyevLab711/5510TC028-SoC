@@ -1,0 +1,31 @@
+********************************************
+*  SURELOG SystemVerilog  Compiler/Linter  *
+********************************************
+
+Copyright (c) 2017-2023 Alain Dargelas,
+http://www.apache.org/licenses/LICENSE-2.0
+
+VERSION: 1.82
+BUILT  : Apr  5 2024
+DATE   : 2024-11-14.10:15:37
+COMMAND: C:/Users/Admin-PC/Desktop/xcad_projects/test/src/test.sv -DYOSYS=1 -DSYNTHESIS=1
+
+[INF:CM0023] Creating log file "C:\Users\Admin-PC\Desktop\xcad_projects\test\prj\Y_WORK\slpp_all\surelog.log".
+[INF:CP0300] Compilation...
+[INF:CP0303] C:\Users\Admin-PC\Desktop\xcad_projects\test\src\test.sv:9:1: Compile module "work@test".
+[INF:CP0302] Compile class "work@mailbox".
+[INF:CP0302] Compile class "work@process".
+[INF:CP0302] Compile class "work@semaphore".
+[INF:EL0526] Design Elaboration...
+[NTE:EL0503] C:\Users\Admin-PC\Desktop\xcad_projects\test\src\test.sv:9:1: Top level module "work@test".
+[NTE:EL0508] Nb Top level modules: 1.
+[NTE:EL0509] Max instance depth: 1.
+[NTE:EL0510] Nb instances: 1.
+[NTE:EL0511] Nb leaf instances: 0.
+[INF:UH0706] Creating UHDM Model...
+[INF:UH0707] Elaborating UHDM...
+[  FATAL] : 0
+[ SYNTAX] : 0
+[  ERROR] : 0
+[WARNING] : 0
+[   NOTE] : 5

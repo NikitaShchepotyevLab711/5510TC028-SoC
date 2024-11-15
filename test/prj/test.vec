@@ -1,0 +1,15 @@
+tunit 1ns
+delay 5.0
+slope 0.1
+period 100.0
+logichv 5.0V
+logiclv 0V
+signal \
+IO<31> \
+IO<96> 
+radix 11
+io ii
+00
+10
+00
+01
