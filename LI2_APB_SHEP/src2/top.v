@@ -12,15 +12,14 @@ module top(
 	// APB Slave
 	output wire        bb_apb_sync_clk   ,
 	
-	output reg 		   psel_watch		 ,
-	output reg 		   penable_watch	 ,
-	output reg 		   pwrite_watch		 ,
-	output reg 		   data_watch        ,
-	output reg 		   ramdata_watch	 ,
-	output reg 		   count_data_watch  ,
-	output wire        CLK               ,
-	output reg 		   addr_watch		 ,
-	output reg 		   raddr_watch   	 ,
+	output wire 	   		io0,
+	output wire 	   		io1,
+	output wire 	   		io2,
+	output wire				io3,
+	output wire 		    io4,
+	output wire 			io5,
+	output wire             io6,
+	output wire 		    io7,
 	
 	input  wire        bb_psel           ,
 	input  wire        bb_penable        ,
@@ -34,24 +33,23 @@ module top(
 	output wire        bb_pslverr        
 );
 
+//wire clk_div;
 
+wire stop;
+reg ready;
+reg ready_dff;
 
-wire [31:0] data_out0;  
+reg [7:0] data_out_reg; 
+wire [31:0] data_out0; 
+wire key4_debounced;
 
 wire [31:0] data_in0;
 
-wire [15:0] data_gen_by_fpga;
+wire [7:0] data_gen_by_fpga;
 
-reg [7:0] data_to_ram0;
-reg [7:0] data_to_ram1;
+reg [8:0] data_to_ram0;
 
-assign data_to_ram0 = data_gen_by_fpga [7:0],
-	   data_to_ram1 = data_gen_by_fpga [15:8];
-
-reg [8:0] data_from_ram23_0;
-reg [8:0] data_from_ram01_0;
-reg [8:0] data_from_ram23_1;
-reg [8:0] data_from_ram01_1;
+wire [8:0] data_from_ram01_0;
 reg rst_h;
 
 reg [7:0] ram_readaddr;
@@ -60,21 +58,15 @@ reg ram_read_ena;
 reg ram_write_ena;
 reg [7:0] addr;
 wire ram_read_clk, ram_write_clk;
-reg DC_in0, DC_in1, DC_in2;
+wire DC_in0, DC_in1, DC_in2;
 
 assign DC_in0 = key1,
 	   DC_in1 = key2,
 	   DC_in2 = key3;
 
- /*  
-assign DC_in0 = 0,
-	   DC_in1 = 0,
-	   DC_in2 = 0;
-*/
-
 wire resetn, clk;
 assign resetn=bb_gpio_in[0];
-assign clk=bb_clk_in;
+assign clk = bb_clk_in;
 assign bb_gpio_out=8'hAF; 
 
 assign bb_apb_sync_clk=bb_clk_in;
@@ -83,97 +75,95 @@ assign bb_clk_out=bb_clk_in;
 
 assign ram_read_clk = ~clk;
 assign ram_write_clk = ~clk;
-/*
-always @(posedge clk) begin
-	if (!(apb_psel & (~apb_pwrite))) begin
-		addr <= ram_writeaddr;
-		if (ram_writeaddr < 255) begin
-			ram_writeaddr <= ram_writeaddr + 1;
-			ram_write_ena <= 0;
-			ram_read_ena  <= 1;
-		end else begin
-			ram_write_ena <= 1;
-			ram_read_ena  <= 1;
-		 if (ram_writeaddr == ram_readaddr)
-			ram_writeaddr <= 0;  
-		end
-	end
-	else begin
-		addr <= ram_readaddr;
-		if (ram_readaddr < 255) begin
-			ram_readaddr  <= ram_readaddr + 1;
-			ram_write_ena <= 1;
-			ram_read_ena  <= 0;
-		end else 
-			ram_readaddr <= 0; 
-		end 
-end
-*/
 
 always @(posedge clk or posedge rst_h) begin
 	if (rst_h) begin
 		ram_writeaddr <= 8'h0;
 		ram_readaddr  <= 8'h0;
+		ready 		  <= 1'h0;
+		ready_dff	  <= 1'h0;
+		ready_dff2 	  <= 1'h0; // - эта строка инвертирует поведение сигнала bb_pready. С ней сигнал ведет себя правильно, без нее инвертируется. Несмотря на то, что эта строка - синтаксическая ошибка
 	end
 	else begin
-		if (key4) begin
-			ram_write_ena <= 0;
-			ram_read_ena  <= 1;
+	
+		data_to_ram0 <= {1'd0, data_gen_by_fpga};
+	
+		ready_dff  <= ready;
+	
+		if ((key4_debounced)&&(!stop)) begin
+			ram_write_ena <= 1'h0;
+			ram_read_ena  <= 1'h1;
 			addr <= ram_writeaddr;
+						
 			if (ram_writeaddr < 255)
 				ram_writeaddr <= ram_writeaddr + 1;
 			else
-				ram_writeaddr <= 0;
+				ram_writeaddr <= 8'h0;
 		end 
-		else begin
-			ram_write_ena <= 1;
-			ram_read_ena  <= 0;
+		else if ((!key4_debounced)&&(stop)) begin
+			ram_write_ena <= 1'h1;
+			ram_read_ena  <= 1'h0;
 			addr <= ram_readaddr;
-	//		if (apb_psel & (~apb_pwrite)) begin
+			
+			if ((bb_penable)&&(~bb_pwrite)) 
+				ready <= 1'h1;
+			else
+				ready <= 1'h0;
+						
+			if ((bb_psel) && (~bb_pwrite)) begin
+				data_out_reg <= data_from_ram01_0[7:0];
+			end
+			if ((bb_psel)&&(~bb_penable)) begin
 				if (ram_readaddr < 255)
 					ram_readaddr <= ram_readaddr + 1;
 				else
-					ram_readaddr <= 0;
-	//		end
+					ram_readaddr <= 8'h0;					
+			end
+		end
+		else begin
+			ram_write_ena <= 1'h1;
+			ram_read_ena  <= 1'h1;
+			data_out_reg  <= 8'h0;
 		end
 	end
 end	
 
-//assign addr = (key4) ? ram_write_ena : ram_read_ena;
 assign rst_h = key0;
+assign bb_pready = ready_dff;
+
+assign io0 = data_gen_by_fpga[0], 			
+	   io1 = bb_pready, // если здесь менять выводимые сигналы (например вместо bb_pready вывести stop или clk) - поведение других выходных сигналов меняется (prdata в частности). Если вывести сигнал stop, старший бит prdata становится равен 1
+	   io2 = ram_writeaddr, 		
+	   io3 = ram_readaddr,  
+	   io4 = data_from_ram01_0[0], 
+	   io5 = bb_psel,	
+	   io6 = bb_penable,
+	   io7 = bb_prdata[0];
+
+assign 	data_out0 [7:0]   = data_out_reg,
+		data_out0 [15:8]  = 8'h0,
+		data_out0 [23:16] = 8'h0,
+		data_out0 [31:24] = 8'h0;
 		
-assign psel_watch 	    = bb_psel, 				//io0
-	   penable_watch    = bb_penable, 			//io1
-	   pwrite_watch     = bb_pwrite, 			//io2
-	   count_data_watch = data_gen_by_fpga[0],  //io5
-	   addr_watch       = ram_writeaddr[0],	    //io6
-	   raddr_watch 		= ram_readaddr[0],	    //io7
-	   ramdata_watch    = data_from_ram01_0[0], //io4
-	   data_watch       = bb_prdata[0], 		//io3
-	   CLK				= bb_clk_in; 			//io10
+assign bb_prdata = data_out0;
 
-assign 	data_out0 [7:0]   = data_from_ram01_0[7:0],//  Почему "ab" никак не передаётся в терминале (на осциллографе что то идёт), в то время как "сс", "ff" передаются - загадка
-		data_out0 [15:8]  = data_from_ram01_1[7:0],
-		data_out0 [23:16] = 0,
-		data_out0 [31:24] = 0;
-
-codegen codegen_inst (
+codegen codegen_inst ( // модуль, генерирующий числа в память от 0 до ff
 	.clk(clk),
 	.rst_h(rst_h),
-	.ena(key4),
-	.data(data_gen_by_fpga)
+	.ena(key4_debounced),
+	.data(data_gen_by_fpga),
+	.stop(stop)
 );
 
-/*
-mem_buffer_verilog mem_buffer_verilog_inst (
+button_debounce debounce_inst0 ( // модуль, устраняющий дребезг кнопки
 	.clk(clk),
-	.rst_l(resetn),
-	.data_in(data_gen_by_fpga),
-	.data_out(data_out)
+	.rst(rst_h),
+	.button_push(key4),
+	.button_state(key4_debounced)
 );
-*/
+
 cell_ramblock_4x_swrite_sread ram0 (
-	.DIn({0,data_to_ram0}), 
+	.DIn(data_to_ram0), 
 //	.DIn(10'hff), 
 	.RADDR(addr), 
 	.WADDR(addr),
@@ -184,27 +174,11 @@ cell_ramblock_4x_swrite_sread ram0 (
 	.DC_in0(DC_in0), 
 	.DC_in1(DC_in1),
 	.DC_in2(DC_in2),
-	.DO1(data_from_ram23_0), 
+	.DO1(), 
 	.DO2(data_from_ram01_0)
 );
 
-cell_ramblock_4x_swrite_sread ram1 (
-	.DIn({0,data_to_ram1}), 
-//	.DIn(10'hff), 
-	.RADDR(addr), 
-	.WADDR(addr),
-	.RDB(ram_read_ena), 
-	.WRB(ram_write_ena), 
-	.RCLKS(ram_read_clk), 
-	.WCLKS(ram_write_clk), 
-	.DC_in0(DC_in0), 
-	.DC_in1(DC_in1),
-	.DC_in2(DC_in2),
-	.DO1(data_from_ram23_1), 
-	.DO2(data_from_ram01_1)
-);
-
-apb_regs #(
+apb_regs #( // этот модуль я не использую, т.к. его логика нужна для получения данных с CPU. Оставил экземпляр, чтобы сигналы шины apb не были подвешены
 .REGS_NUM(4),
 .APB_WIDTH(24),
 .REG_TYPES({2*32{4'd2}})
@@ -218,8 +192,8 @@ apb_regs #(
 	.apb_pstrb(bb_pstrb),
 	.apb_pprot(bb_pprot),
 	.apb_pwdata(bb_pwdata),
-	.apb_pready(bb_pready),
-	.apb_prdata(bb_prdata), 
+//	.apb_pready(bb_pready),
+//	.apb_prdata(bb_prdata), 
 	.apb_pslverr(bb_pslverr),
 	.reg_outputs0(data_in0),
 	.reg_outputs1(),

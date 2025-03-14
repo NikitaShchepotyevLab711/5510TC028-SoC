@@ -34,7 +34,7 @@ module apb_regs
 	input  logic [31:0]               apb_pwdata         ,  
 	output logic [31:0]               apb_prdata         ,
 	input  logic [ 2:0]               apb_pprot          ,
-	output logic                      apb_pready         ,
+//	output logic                      apb_pready         ,
 	output logic                      apb_pslverr        ,	
 	                                 //Registers         
 	output logic [31:0] reg_outputs0        ,
@@ -54,12 +54,13 @@ module apb_regs
 	       reg_outputs1 = reg_outputs[1],
 	       reg_outputs2 = reg_outputs[2],
 	       reg_outputs3 = reg_outputs[3],
+	       apb_prdata   = reg_inputs0,
 	       reg_inputs[0] = reg_inputs0,
 	       reg_inputs[1] = reg_inputs1,
 	       reg_inputs[2] = reg_inputs2,
 	       reg_inputs[3] = reg_inputs3;
 	       
-	assign apb_pready  = (resetn) ? 1'b1 : 1'b0;
+//	assign apb_pready  = (resetn) ? 1'b1 : 1'b0;
 	assign apb_pslverr = 1'b0;
 
 	import apb_regs_pkg::*;
@@ -302,22 +303,21 @@ module apb_regs
 	end
 	end
 	endgenerate
-
+/*
 	always_ff @(posedge clk, negedge resetn) begin
 		if (~resetn) begin
 			apb_prdata <= 0;
 		end
 		else begin
-			apb_prdata <= 0;
 			
-			for(int k=0;k<REGS_NUM;k=k+1) begin
-				if (apb_psel & (~apb_pwrite) & (apb_paddr[APB_WIDTH-1:2] == k)) apb_prdata <= rdarr[k];
-			end
+//			for(int k=0;k<REGS_NUM;k=k+1) begin
+//				if (apb_psel & (~apb_pwrite) & (apb_paddr[APB_WIDTH-1:2] == k)) apb_prdata <= rdarr[k];
+//			end
 
-//			if (apb_psel & (~apb_pwrite))
-//				apb_prdata <= rdarr[0];
+			if (apb_psel & (~apb_pwrite))
+				apb_prdata <= reg_inputs0;
 			
 		end
 	end
-
+*/
 endmodule

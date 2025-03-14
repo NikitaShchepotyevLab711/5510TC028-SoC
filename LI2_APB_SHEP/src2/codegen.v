@@ -10,23 +10,36 @@ module codegen(
 	input clk,
 	input rst_h,
 	input ena,
-	output [15:0] data
+	output wire stop,
+	output wire [7:0] data
 );
 
-reg [15:0] increment = 16'd0;
+reg [7:0] increment;
+reg stop_dff;
 
 always @(posedge clk or posedge rst_h) begin
 	if (rst_h) begin
-		increment <= 16'd0;
+		increment <= 8'd0;
+		stop_dff <= 1'h0;
 	end
-	else if (ena) begin
-		if (increment < 16'hffff) begin
-			increment <= increment + 1'd1;
+	else begin 
+		if (ena) begin
+			if (increment < 8'hff) begin 
+				increment <= increment + 8'd1; // если здесь +1 изменить на +2 или +3, сбивается работа шины prdata - данные идут не согласно протоколу amba apb, а каждый такт 
+				stop_dff <= 1'h0;
+			end
+			else begin
+				stop_dff <= 1'h1;
+				increment <= increment;
+			end
+		end
+		else begin
+			increment <= 8'h0;
 		end
 	end
-end
-
+end		
+		  
 assign data = increment;
-//assign data = 16'hcdef;
+assign stop = stop_dff;
 
 endmodule

@@ -1,7 +1,7 @@
 ############################################################
 ###                                                         
 ###   Generated     X-Place v2.48.61                             
-###   Date/Time     17.02.2025 / 17:58:20                                 
+###   Date/Time     14.03.2025 / 11:53:18                                 
 ###                                                         
 ############################################################
 ###                                                         
@@ -126,16 +126,15 @@ set xc(inout) {
 	{ key1 IO[97] }
 	{ key2 IO[98] }
 	{ key3 IO[99] }
-	{ key4 IO[100] }
-	{ CLK IO[10] }
-	{ psel_watch IO[0] }
-	{ penable_watch IO[1] }
-	{ pwrite_watch IO[2] }
-	{ data_watch IO[3] }
-	{ ramdata_watch IO[4] }
-	{ count_data_watch IO[5] }
-	{ addr_watch IO[6] }
-	{ raddr_watch IO[7] }
+	{ key4 IO[101] }
+	{ io0 IO[0] }
+	{ io1 IO[1] }
+	{ io2 IO[2] }
+	{ io3 IO[3] }
+	{ io4 IO[4] }
+	{ io5 IO[5] }
+	{ io6 IO[6] }
+	{ io7 IO[7] }
 }
 set xc(inout_type) {
 	{ bb_apb_sync_clk cpu_fpga_out_clk x }
@@ -254,14 +253,13 @@ set xc(inout_type) {
 	{ key2 xci2_ib a }
 	{ key3 xci2_ib a }
 	{ key4 xci2_ib a }
-	{ CLK xci2_ob x }
-	{ psel_watch xci2_ob x }
-	{ penable_watch xci2_ob x }
-	{ pwrite_watch xci2_ob x }
-	{ data_watch xci2_ob x }
-	{ ramdata_watch xci2_ob x }
-	{ count_data_watch xci2_ob x }
-	{ addr_watch xci2_ob x }
-	{ raddr_watch xci2_ob x }
+	{ io0 xci2_ob x }
+	{ io1 xci2_ob x }
+	{ io2 xci2_ob x }
+	{ io3 xci2_ob x }
+	{ io4 xci2_ob x }
+	{ io5 xci2_ob x }
+	{ io6 xci2_ob x }
+	{ io7 xci2_ob x }
 }
 ###END
