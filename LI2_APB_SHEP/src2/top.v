@@ -4,6 +4,7 @@ module top(
 	input key2,
 	input key3,
 	input key4,
+	input uart_rxd,
 	input  wire        bb_clk_in         ,
 	output wire        bb_clk_out        ,
 	// GPIO
@@ -20,6 +21,7 @@ module top(
 	output wire 			io5,
 	output wire             io6,
 	output wire 		    io7,
+	output wire 	   key4_debounced_out,
 	
 	input  wire        bb_psel           ,
 	input  wire        bb_penable        ,
@@ -35,6 +37,15 @@ module top(
 
 //wire clk_div;
 
+// Clock frequency in hertz.
+parameter CLK_HZ = 10_000_000;
+parameter BIT_RATE = 115200;
+parameter PAYLOAD_BITS = 8;
+parameter STOP_BITS = 1;
+	
+wire [PAYLOAD_BITS-1:0]  uart_rx_data;
+wire uart_rx_ready;
+
 wire stop;
 reg ready;
 reg ready_dff;
@@ -42,15 +53,18 @@ reg ready_dff;
 reg [7:0] data_out_reg; 
 wire [31:0] data_out0; 
 wire key4_debounced;
+assign key4_debounced_out = key4_debounced;
 
 wire [31:0] data_in0;
+
+wire out0, out1, out2, out3;
 
 wire [7:0] data_gen_by_fpga;
 
 reg [8:0] data_to_ram0;
 
 wire [8:0] data_from_ram01_0;
-reg rst_h;
+wire rst_l;
 
 reg [7:0] ram_readaddr;
 reg [7:0] ram_writeaddr;
@@ -76,31 +90,29 @@ assign bb_clk_out=bb_clk_in;
 assign ram_read_clk = ~clk;
 assign ram_write_clk = ~clk;
 
-always @(posedge clk or posedge rst_h) begin
-	if (rst_h) begin
+always @(posedge clk or negedge rst_l) begin
+	if (!rst_l) begin
 		ram_writeaddr <= 8'h0;
 		ram_readaddr  <= 8'h0;
 		ready 		  <= 1'h0;
 		ready_dff	  <= 1'h0;
-		ready_dff2 	  <= 1'h0; // - эта строка инвертирует поведение сигнала bb_pready. С ней сигнал ведет себя правильно, без нее инвертируется. Несмотря на то, что эта строка - синтаксическая ошибка
+//		ready_dff2 	  <= 1'h0; // - эта строка инвертирует поведение сигнала bb_pready. С ней сигнал ведет себя правильно, без нее инвертируется. Несмотря на то, что эта строка - синтаксическая ошибка
 	end
 	else begin
+		
+		data_to_ram0 <= {1'd0, uart_rx_data};	
+		ready_dff  <= !ready;
 	
-		data_to_ram0 <= {1'd0, data_gen_by_fpga};
-	
-		ready_dff  <= ready;
-	
-		if ((key4_debounced)&&(!stop)) begin
+		if (key4_debounced) begin
 			ram_write_ena <= 1'h0;
 			ram_read_ena  <= 1'h1;
 			addr <= ram_writeaddr;
-						
-			if (ram_writeaddr < 255)
+					
+			if ((ram_writeaddr < 255)&&(uart_rx_ready))
 				ram_writeaddr <= ram_writeaddr + 1;
-			else
-				ram_writeaddr <= 8'h0;
+				
 		end 
-		else if ((!key4_debounced)&&(stop)) begin
+		else begin
 			ram_write_ena <= 1'h1;
 			ram_read_ena  <= 1'h0;
 			addr <= ram_readaddr;
@@ -110,9 +122,6 @@ always @(posedge clk or posedge rst_h) begin
 			else
 				ready <= 1'h0;
 						
-			if ((bb_psel) && (~bb_pwrite)) begin
-				data_out_reg <= data_from_ram01_0[7:0];
-			end
 			if ((bb_psel)&&(~bb_penable)) begin
 				if (ram_readaddr < 255)
 					ram_readaddr <= ram_readaddr + 1;
@@ -120,18 +129,13 @@ always @(posedge clk or posedge rst_h) begin
 					ram_readaddr <= 8'h0;					
 			end
 		end
-		else begin
-			ram_write_ena <= 1'h1;
-			ram_read_ena  <= 1'h1;
-			data_out_reg  <= 8'h0;
-		end
 	end
 end	
 
-assign rst_h = key0;
+assign rst_l = !key0;
 assign bb_pready = ready_dff;
 
-assign io0 = data_gen_by_fpga[0], 			
+assign io0 = uart_rxd, 			
 	   io1 = bb_pready, // если здесь менять выводимые сигналы (например вместо bb_pready вывести stop или clk) - поведение других выходных сигналов меняется (prdata в частности). Если вывести сигнал stop, старший бит prdata становится равен 1
 	   io2 = ram_writeaddr, 		
 	   io3 = ram_readaddr,  
@@ -140,12 +144,28 @@ assign io0 = data_gen_by_fpga[0],
 	   io6 = bb_penable,
 	   io7 = bb_prdata[0];
 
-assign 	data_out0 [7:0]   = data_out_reg,
-		data_out0 [15:8]  = 8'h0,
-		data_out0 [23:16] = 8'h0,
-		data_out0 [31:24] = 8'h0;
+assign 	bb_prdata [7:0]   = data_from_ram01_0,
+		bb_prdata [15:8]  = 1 ? 8'h0: 8'h0,
+		bb_prdata [23:16] = 1 ? 8'h0: 8'h0,
+		bb_prdata [31:24] = 1 ? 8'h0: 8'h0;
 		
-assign bb_prdata = data_out0;
+uart_rx #(
+	.BIT_RATE	  (BIT_RATE),
+	.PAYLOAD_BITS (PAYLOAD_BITS),
+	.CLK_HZ 	  (CLK_HZ  ),
+	.STOP_BITS	  (STOP_BITS)
+	)
+	i_uart_rx(
+	.clk          (clk          ), // Top level system clock input.
+	.resetn       (rst_l        ), // Asynchronous active low reset.
+	.uart_rxd     (uart_rxd     ), // UART Recieve pin.
+	.uart_rx_ready(uart_rx_ready), // Valid data recieved and available.
+	.uart_rx_data (uart_rx_data ), // The recieved data.
+	.out0		  (out0			),
+	.out1		  (out1			),
+	.out2		  (out2			),
+	.out3		  (out3			)
+);
 
 codegen codegen_inst ( // модуль, генерирующий числа в память от 0 до ff
 	.clk(clk),
@@ -164,7 +184,6 @@ button_debounce debounce_inst0 ( // модуль, устраняющий дре�
 
 cell_ramblock_4x_swrite_sread ram0 (
 	.DIn(data_to_ram0), 
-//	.DIn(10'hff), 
 	.RADDR(addr), 
 	.WADDR(addr),
 	.RDB(ram_read_ena), 

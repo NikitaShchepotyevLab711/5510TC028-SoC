@@ -1,7 +1,7 @@
 ############################################################
 ###                                                         
 ###   Generated     X-Place v2.48.61                             
-###   Date/Time     14.03.2025 / 11:53:18                                 
+###   Date/Time     18.03.2025 / 18:16:05                                 
 ###                                                         
 ############################################################
 ###                                                         
@@ -122,6 +122,8 @@ set xc(inout) {
 	{ bb_gpio_in[0] bb_gpio_in[0] }
 	{ bb_clk_out bb_clk_out }
 	{ bb_clk_in bb_clk_in }
+	{ uart_rxd IO[190] }
+	{ key4_debounced_out IO[189] }
 	{ key0 IO[96] }
 	{ key1 IO[97] }
 	{ key2 IO[98] }
@@ -248,6 +250,8 @@ set xc(inout_type) {
 	{ bb_gpio_in[0] cpu_fpga_in a }
 	{ bb_clk_out cpu_clk_out x }
 	{ bb_clk_in cpu_clk_in a }
+	{ uart_rxd xci2_ib a }
+	{ key4_debounced_out xci2_ob x }
 	{ key0 xci2_ib a }
 	{ key1 xci2_ib a }
 	{ key2 xci2_ib a }
