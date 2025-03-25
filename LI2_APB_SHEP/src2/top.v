@@ -1,3 +1,6 @@
+//`define RAM_MODE 
+`define FIFO_MODE
+
 module top(
 	input key0,
 	input key1,
@@ -35,14 +38,11 @@ module top(
 	output wire        bb_pslverr        
 );
 
-//wire clk_div;
-
-// Clock frequency in hertz.
-parameter CLK_HZ = 10_000_000;
-parameter BIT_RATE = 115200;
+// uart parameters and signals //
+parameter CLK_HZ = 5_000_000;
+parameter BIT_RATE = 57600;
 parameter PAYLOAD_BITS = 8;
-parameter STOP_BITS = 1;
-	
+parameter STOP_BITS = 1;	
 wire [PAYLOAD_BITS-1:0]  uart_rx_data;
 wire uart_rx_ready;
 
@@ -54,18 +54,14 @@ reg [7:0] data_out_reg;
 wire [31:0] data_out0; 
 wire key4_debounced;
 assign key4_debounced_out = key4_debounced;
-
 wire [31:0] data_in0;
-
 wire out0, out1, out2, out3;
-
 wire [7:0] data_gen_by_fpga;
-
 reg [8:0] data_to_ram0;
-
 wire [8:0] data_from_ram01_0;
 wire rst_l;
 
+// ram signals //
 reg [7:0] ram_readaddr;
 reg [7:0] ram_writeaddr;
 reg ram_read_ena;
@@ -73,64 +69,83 @@ reg ram_write_ena;
 reg [7:0] addr;
 wire ram_read_clk, ram_write_clk;
 wire DC_in0, DC_in1, DC_in2;
-
 assign DC_in0 = key1,
 	   DC_in1 = key2,
 	   DC_in2 = key3;
+	   
+// fifo signals //
+wire full, empty;
+reg [7:0] raddr, waddr;
 
+// apb signals //
 wire resetn, clk;
 assign resetn=bb_gpio_in[0];
 assign clk = bb_clk_in;
 assign bb_gpio_out=8'hAF; 
-
 assign bb_apb_sync_clk=bb_clk_in;
-
 assign bb_clk_out=bb_clk_in;
-
 assign ram_read_clk = ~clk;
 assign ram_write_clk = ~clk;
 
-always @(posedge clk or negedge rst_l) begin
-	if (!rst_l) begin
-		ram_writeaddr <= 8'h0;
-		ram_readaddr  <= 8'h0;
-		ready 		  <= 1'h0;
-		ready_dff	  <= 1'h0;
-//		ready_dff2 	  <= 1'h0; // - эта строка инвертирует поведение сигнала bb_pready. С ней сигнал ведет себя правильно, без нее инвертируется. Несмотря на то, что эта строка - синтаксическая ошибка
-	end
-	else begin
-		
-		data_to_ram0 <= {1'd0, uart_rx_data};	
-		ready_dff  <= !ready;
-	
-		if (key4_debounced) begin
-			ram_write_ena <= 1'h0;
-			ram_read_ena  <= 1'h1;
-			addr <= ram_writeaddr;
+`ifdef RAM_MODE
+	always @(posedge clk or negedge rst_l) begin
+		if (!rst_l) begin
+			ram_writeaddr <= 8'h0;
+			ram_readaddr  <= 8'h0;
+			ready 		  <= 1'h0;
+			ready_dff	  <= 1'h0;
+		end
+		else begin	
+			data_to_ram0 <= {1'd0, uart_rx_data};	
+			ready_dff  <= !ready;	
+			if (key4_debounced) begin
+				ram_write_ena <= 1'h0;
+				ram_read_ena  <= 1'h1;
+				addr <= ram_writeaddr;
 					
-			if ((ram_writeaddr < 255)&&(uart_rx_ready))
-				ram_writeaddr <= ram_writeaddr + 1;
+				if ((ram_writeaddr < 255)&&(uart_rx_ready))
+					ram_writeaddr <= ram_writeaddr + 1;
 				
-		end 
-		else begin
-			ram_write_ena <= 1'h1;
-			ram_read_ena  <= 1'h0;
-			addr <= ram_readaddr;
+			end 
+			else begin
+				ram_write_ena <= 1'h1;
+				ram_read_ena  <= 1'h0;
+				addr <= ram_readaddr;
 			
-			if ((bb_penable)&&(~bb_pwrite)) 
-				ready <= 1'h1;
-			else
-				ready <= 1'h0;
-						
-			if ((bb_psel)&&(~bb_penable)) begin
-				if (ram_readaddr < 255)
-					ram_readaddr <= ram_readaddr + 1;
+				if ((bb_penable)&&(~bb_pwrite)) 
+					ready <= 1'h1;
 				else
-					ram_readaddr <= 8'h0;					
+					ready <= 1'h0;
+						
+				if ((bb_psel)&&(~bb_penable)) begin
+					if (ram_readaddr < 255)
+						ram_readaddr <= ram_readaddr + 1;
+					else
+						ram_readaddr <= 8'h0;					
+				end
 			end
 		end
+	end	
+`endif
+
+`ifdef FIFO_MODE
+	always @(posedge clk or negedge rst_l) begin
+		if (!rst_l) begin
+			waddr <= 1'h0;
+			raddr <= 1'h0;
+			data_to_ram0 <= 9'd0;
+		end
+		else begin
+			data_to_ram0 <= {1'h0, uart_rx_data};	
+
+			if ((uart_rx_ready)&&(!full)) 
+				waddr <= waddr + 1'h1;					
+
+			if ((!empty)&&(bb_psel)&&(~bb_penable))
+				raddr <= raddr + 1'h1;
+		end
 	end
-end	
+`endif
 
 assign rst_l = !key0;
 assign bb_pready = ready_dff;
@@ -144,10 +159,8 @@ assign io0 = uart_rxd,
 	   io6 = bb_penable,
 	   io7 = bb_prdata[0];
 
-assign 	bb_prdata [7:0]   = data_from_ram01_0,
-		bb_prdata [15:8]  = 1 ? 8'h0: 8'h0,
-		bb_prdata [23:16] = 1 ? 8'h0: 8'h0,
-		bb_prdata [31:24] = 1 ? 8'h0: 8'h0;
+assign 	bb_prdata [7:0]   = 1 ? data_from_ram01_0 : 8'b0,
+		bb_prdata [31:8]  = 24'd0;
 		
 uart_rx #(
 	.BIT_RATE	  (BIT_RATE),
@@ -169,7 +182,7 @@ uart_rx #(
 
 codegen codegen_inst ( // модуль, генерирующий числа в память от 0 до ff
 	.clk(clk),
-	.rst_h(rst_h),
+	.rst_h(rst_l),
 	.ena(key4_debounced),
 	.data(data_gen_by_fpga),
 	.stop(stop)
@@ -177,25 +190,50 @@ codegen codegen_inst ( // модуль, генерирующий числа в �
 
 button_debounce debounce_inst0 ( // модуль, устраняющий дребезг кнопки
 	.clk(clk),
-	.rst(rst_h),
+	.rst(rst_l),
 	.button_push(key4),
 	.button_state(key4_debounced)
 );
 
-cell_ramblock_4x_swrite_sread ram0 (
-	.DIn(data_to_ram0), 
-	.RADDR(addr), 
-	.WADDR(addr),
-	.RDB(ram_read_ena), 
-	.WRB(ram_write_ena), 
-	.RCLKS(ram_read_clk), 
-	.WCLKS(ram_write_clk), 
-	.DC_in0(DC_in0), 
-	.DC_in1(DC_in1),
-	.DC_in2(DC_in2),
-	.DO1(), 
-	.DO2(data_from_ram01_0)
-);
+`ifdef RAM_MODE
+	cell_ramblock_4x_swrite_sread ram0 (
+		.DIn(data_to_ram0), 
+		.RADDR(addr), 
+		.WADDR(addr),
+		.RDB(ram_read_ena), 
+		.WRB(ram_write_ena), 
+		.RCLKS(ram_read_clk), 
+		.WCLKS(ram_write_clk), 
+		.DC_in0(DC_in0), 
+		.DC_in1(DC_in1),
+		.DC_in2(DC_in2),
+		.DO1(), 
+		.DO2(data_from_ram01_0)
+	);
+`endif
+
+`ifdef FIFO_MODE
+	cell_fifo_4x_swrite_sread fifo (
+		.DIn(data_to_ram0),
+		.RADDR(raddr),
+		.WADDR(waddr),
+		.RDB(0),
+		.WRB(0),
+		.RCLKS(ram_read_clk),
+		.WCLKS(ram_write_clk),
+		.DC_in0(DC_in0),
+		.DC_in1(DC_in1),
+		.DC_in2(DC_in2),
+		.DO1(),
+		.DO2(data_from_ram01_0),
+//		.FULL1(full),
+//		.EMPTY1(empty),
+//		.EQTH1,
+//		.GEQTH1,
+		.FULL2(full),
+		.EMPTY2(empty)
+	);
+`endif
 
 apb_regs #( // этот модуль я не использую, т.к. его логика нужна для получения данных с CPU. Оставил экземпляр, чтобы сигналы шины apb не были подвешены
 .REGS_NUM(4),
