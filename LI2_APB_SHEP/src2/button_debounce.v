@@ -22,7 +22,7 @@ always @(posedge clk or negedge rst) begin
 		button_register <= {button_register[0], button_push};
 end
 
-reg [15:0] button_count;
+reg [7:0] button_count;
 
 wire button_change = (button_state != button_register[1]);
 wire button_count_max = &button_count;

@@ -64,7 +64,7 @@ reg [1:0] n_fsm_state;
 
 assign uart_rx_ready = ((fsm_state == FSM_STOP) && (n_fsm_state == FSM_IDLE));
 
-always @(posedge clk) begin
+always @(posedge clk or negedge resetn) begin
     if (!resetn) begin
         uart_rx_data  <= {PAYLOAD_BITS{1'b0}};
     end else if (fsm_state == FSM_STOP) begin
@@ -92,7 +92,7 @@ always @(*) begin
 end
 
 // Работа сдвигового регистра, принимающего поступающие данные
-always @(posedge clk) begin : p_recieved_data
+always @(posedge clk or negedge resetn) begin : p_recieved_data
 	integer i;
     if (!resetn) begin
         recieved_data <= {PAYLOAD_BITS{1'b0}};
@@ -107,7 +107,7 @@ always @(posedge clk) begin : p_recieved_data
 end
 
 // Увеличение значения счётчика поступивших бит данных
-always @(posedge clk) begin : p_bit_counter
+always @(posedge clk or negedge resetn) begin : p_bit_counter
     if (!resetn) begin
         bit_counter <= {COUNT_REG_LEN{1'b0}};
     end else if (fsm_state != FSM_RECV) begin
@@ -118,7 +118,7 @@ always @(posedge clk) begin : p_bit_counter
 end
 
 // Захват принятого бита, когда находимся по центру фрейма данного бита
-always @(posedge clk) begin : p_bit_sample
+always @(posedge clk or negedge resetn) begin : p_bit_sample
     if (!resetn) begin
         bit_sample <= 1'b0;
     end else if (cycle_counter == CYCLES_PER_BIT/2) begin
@@ -126,21 +126,20 @@ always @(posedge clk) begin : p_bit_sample
     end
 end
 
+wire cycle_flag = (fsm_state == FSM_START || fsm_state == FSM_RECV || fsm_state == FSM_STOP);
+
 // Работа счётчика циклов тактового сигнала в течение поступившего одного бита данных
-always @(posedge clk) begin : p_cycle_counter
+always @(posedge clk or negedge resetn) begin : p_cycle_counter
     if (!resetn) begin
         cycle_counter <= {COUNT_REG_LEN{1'b0}};
     end else if (next_bit) begin
         cycle_counter <= {COUNT_REG_LEN{1'b0}};
-    end else if (fsm_state == FSM_START || 
-                 fsm_state == FSM_RECV  || 
-                 fsm_state == FSM_STOP   ) begin
-        cycle_counter <= cycle_counter + 1'b1;
-    end
+    end else 
+        cycle_counter <= cycle_counter + (cycle_flag ? 1'b1 : 1'b0);
 end
 
 // Условие переключения в следующее состояние
-always @(posedge clk) begin : p_fsm_state
+always @(posedge clk or negedge resetn) begin : p_fsm_state
     if (!resetn) begin
         fsm_state <= FSM_IDLE;
     end else begin
@@ -149,17 +148,12 @@ always @(posedge clk) begin : p_fsm_state
 end
 
 // Синхронизация данных, принятых извне через два регистра
-always @(posedge clk) begin : p_rxd_reg
+always @(posedge clk or negedge resetn) begin : p_rxd_reg
     if (!resetn) begin
         rxd_reg <= 2'b11;
     end else begin
         rxd_reg <= {rxd_reg[0], uart_rxd};
     end
 end
-
-assign out0 = bit_counter[0];
-assign out1 = fsm_state[0];
-assign out2 = bit_counter[0];
-assign out3 = recieved_data[0];
 
 endmodule
